@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Devices</title>
+    <style>
+        /* Dark mode styles */
+        body {
+            background-color: #2e2e2e;
+            color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #555;
+            text-align: left;
+        }
+        th {
+            background-color: #444;
+        }
+        tr:nth-child(even) {
+            background-color: #3b3b3b;
+        }
+        tr:nth-child(odd) {
+            background-color: #2e2e2e;
+        }
+        input, select, button {
+            padding: 5px;
+            margin: 5px;
+            background-color: #444;
+            color: #f0f0f0;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover {
+            background-color: #555;
+        }
+        h1, h2 {
+            color: #f0f0f0;
+        }
+        a {
+            color: #f0f0f0;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Manage Devices</h1>
+
+    <!-- Devices Table -->
+    <table>
+        <thead>
+            <tr>
+                <th>Device Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Add Device Form Row -->
+            <tr>
+                <form method="POST" action="/devices">
+                    <td>
+                        <input type="text" name="device_name" placeholder="Device name" required>
+                    </td>
+                    <td>
+                        <button type="submit">Add Device</button>
+                    </td>
+                </form>
+            </tr>
+
+            <!-- Existing Devices Rows -->
+            {% for device in devices %}
+            <tr>
+                <td>{{ device.name }}</td>
+                <td>
+                    <form method="POST" action="/remove_device/{{ device.id }}" style="display:inline;">
+                        <button type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="/">Back to Home</a>
+</body>
+</html>

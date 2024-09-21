@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keys for Category {{ category_name }}</title>
+    <style>
+        /* Dark mode styles */
+        body {
+            background-color: #2e2e2e;
+            color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #555;
+            text-align: left;
+        }
+        th {
+            background-color: #444;
+        }
+        tr:nth-child(even) {
+            background-color: #3b3b3b;
+        }
+        tr:nth-child(odd) {
+            background-color: #2e2e2e;
+        }
+        input, select, button, textarea {
+            padding: 5px;
+            margin: 5px;
+            background-color: #444;
+            color: #f0f0f0;
+            border: none;
+            border-radius: 3px;
+        }
+        textarea {
+            width: 150px; /* Same width as input fields */
+        }
+        button:hover {
+            background-color: #555;
+        }
+        h1, h2 {
+            color: #f0f0f0;
+        }
+        a {
+            color: #f0f0f0;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+
+    <!-- JavaScript Confirmation Function -->
+    <script>
+        function confirmAction(action) {
+            return confirm("Are you sure you want to " + action + " this key?");
+        }
+    </script>
+</head>
+<body>
+    <h1>Keys for Category: {{ category_name }}</h1>
+
+    <!-- Add New Key Form -->
+    <h2>Add a New Key to this Category</h2>
+    <form method="POST" action="/add_key">
+        <input type="hidden" name="category_id" value="{{ category_id }}">
+        <input type="text" name="name" placeholder="Key Name" required>
+        <input type="text" name="serial_key" placeholder="Serial Key" required>
+
+        <!-- Longer Free Text Field for Description -->
+        <label for="description">Description (optional):</label>
+        <textarea name="description" placeholder="Enter description" rows="5" cols="40"></textarea>
+
+        <!-- Device Dropdown -->
+        <label for="device_id">Bind to Device (optional):</label>
+        <select name="device_id">
+            <option value="">None</option> <!-- Default to None -->
+            {% for device in all_devices %}
+            <option value="{{ device.id }}">{{ device.name }}</option>
+            {% endfor %}
+        </select>
+
+        <label>
+            <input type="checkbox" name="is_in_use"> Is In Use
+        </label>
+        <button type="submit">Add Key</button>
+    </form>
+
+    <h2>Existing Keys</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Serial Key</th>
+                <th>Description</th>
+                <th>Device</th>
+                <th>In Use</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key in keys %}
+            <tr>
+                <td>{{ key.name }}</td>
+                <td>{{ key.serial_key }}</td>
+                <td>
+                    <!-- Description update form -->
+                    <form method="POST" action="/update_key_description/{{ key.id }}">
+                        <input type="text" name="description" value="{{ key.description or '' }}" size="25">
+                        <button type="submit">Update</button>
+                    </form>
+                </td>
+                <td>
+                    <!-- Device binding form for each key -->
+                    <form method="POST" action="/update_key_device/{{ key.id }}">
+                        <select name="device_id">
+                            <option value="" {% if not key.device_id %}selected{% endif %}>None</option> <!-- Default to None -->
+                            {% for device in all_devices %}
+                            <option value="{{ device.id }}" {% if device.id == key.device_id %}selected{% endif %}>
+                                {{ device.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit">Update Device</button>
+                    </form>
+                </td>
+                <td>{{ 'In Use' if key.is_in_use else 'Available' }}</td>
+                <td>
+                    <!-- Remove Key with Confirmation -->
+                    <form method="POST" action="/remove_key/{{ key.id }}" style="display:inline;" onsubmit="return confirmAction('remove');">
+                        <button type="submit">Remove Key</button>
+                    </form>
+
+                    <!-- Move Key to Another Category with Confirmation -->
+                    <form method="POST" action="/move_key/{{ key.id }}" style="display:inline;" onsubmit="return confirmAction('move');">
+                        <label for="new_category">Move to Category:</label>
+                        <select name="new_category" required>
+                            {% for category in all_categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit">Move</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="/">Back to Categories</a>
+</body>
+</html>

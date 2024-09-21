@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keys for Device {{ device.name }}</title>
+    <style>
+        /* Dark mode styles */
+        body {
+            background-color: #2e2e2e;
+            color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #555;
+            text-align: left;
+        }
+        th {
+            background-color: #444;
+        }
+        tr:nth-child(even) {
+            background-color: #3b3b3b;
+        }
+        tr:nth-child(odd) {
+            background-color: #2e2e2e;
+        }
+        input, button {
+            padding: 5px;
+            margin: 5px;
+            background-color: #444;
+            color: #f0f0f0;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover {
+            background-color: #555;
+        }
+        h1, h2 {
+            color: #f0f0f0;
+        }
+        a {
+            color: #f0f0f0;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Keys for Device: {{ device.name }}</h1>
+
+    <!-- Add New Key Form for the Device -->
+    <h2>Add a New Key to this Device</h2>
+    <form method="POST" action="/add_key">
+        <input type="hidden" name="device_id" value="{{ device.id }}">
+        <input type="text" name="name" placeholder="Key Name" required>
+        <input type="text" name="serial_key" placeholder="Serial Key" required>
+        <label>
+            <input type="checkbox" name="is_in_use"> Is In Use
+        </label>
+        <button type="submit">Add Key</button>
+    </form>
+
+    {% if keys %}
+    <h2>Associated Keys</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Serial Key</th>
+                <th>In Use</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for key in keys %}
+            <tr>
+                <td>{{ key.name }}</td>
+                <td>{{ key.serial_key }}</td>
+                <td>{{ 'Yes' if key.is_in_use else 'No' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No keys are associated with this device.</p>
+    {% endif %}
+
+    <a href="/">Back to Devices and Categories</a>
+</body>
+</html>

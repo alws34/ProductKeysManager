@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categories and Devices</title>
+    <style>
+        /* Dark mode styles */
+        body {
+            background-color: #2e2e2e;
+            color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #555;
+            text-align: left;
+        }
+        th {
+            background-color: #444;
+        }
+        tr:nth-child(even) {
+            background-color: #3b3b3b;
+        }
+        tr:nth-child(odd) {
+            background-color: #2e2e2e;
+        }
+        input, button {
+            padding: 5px;
+            margin: 5px;
+            background-color: #444;
+            color: #f0f0f0;
+            border: none;
+            border-radius: 3px;
+        }
+        button:hover {
+            background-color: #555;
+        }
+        h1, h2 {
+            color: #f0f0f0;
+        }
+        a {
+            color: #f0f0f0;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+
+    <!-- JavaScript Confirmation and AJAX Request -->
+    <script>
+        function confirmAction(action, itemType) {
+            return confirm(`Are you sure you want to ${action} this ${itemType}?`);
+        }
+
+        // Function to handle the AJAX request to delete a device
+        function removeDevice(deviceId) {
+            if (confirmAction('remove', 'device')) {
+                fetch(`/remove_device/${deviceId}`, {
+                    method: 'POST'
+                }).then(response => {
+                    if (response.ok) {
+                        // Remove the device row from the table
+                        document.getElementById(`device-row-${deviceId}`).remove();
+                    } else {
+                        alert('Failed to remove the device');
+                    }
+                }).catch(error => {
+                    console.error('Error removing device:', error);
+                });
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Welcome, {{ session['username'] }}</h1>
+
+    <!-- Add Category Form -->
+    <h2>Add a Category</h2>
+    <form method="POST" action="/add_category">
+        <table>
+            <tr>
+                <td><input type="text" name="category_name" placeholder="Category name" required></td>
+                <td><button type="submit">Add Category</button></td>
+            </tr>
+        </table>
+    </form>
+
+    <!-- Add Device Form -->
+    <h2>Add a Device</h2>
+    <form method="POST" action="/">
+        <table>
+            <tr>
+                <td><input type="text" name="device_name" placeholder="Device name" required></td>
+                <td><button type="submit">Add Device</button></td>
+            </tr>
+        </table>
+    </form>
+
+     <!-- Categories Table -->
+     <h2>Categories</h2>
+     <table>
+         <thead>
+             <tr>
+                 <th>Category Name</th>
+                 <th>Actions</th>
+             </tr>
+         </thead>
+         <tbody>
+             {% for category in categories %}
+             <tr>
+                 <td><a href="/category/{{ category.id }}">{{ category.name }}</a></td>
+                 <td>
+                     <!-- Remove Category with Confirmation -->
+                     <form method="POST" action="/remove_category/{{ category.id }}" style="display:inline;" onsubmit="return confirmAction('remove', 'category');">
+                         <button type="submit">Remove Category</button>
+                     </form>
+                 </td>
+             </tr>
+             {% endfor %}
+         </tbody>
+     </table>
+
+    <!-- Devices Table -->
+    <h2>Devices</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Device Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for device in devices %}
+            <tr id="device-row-{{ device.id }}">
+                <td><a href="/device/{{ device.id }}">{{ device.name }}</a></td> <!-- Link to view keys by device -->
+                <td>
+                    <!-- Remove Device with AJAX Confirmation -->
+                    <button type="button" onclick="removeDevice('{{ device.id }}')">Remove Device</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+   
+
+    <a href="/logout">Logout</a>
+</body>
+</html>
