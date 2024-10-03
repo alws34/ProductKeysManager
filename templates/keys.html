@@ -1,6 +1,116 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+        function confirmAction(action) {
+            return confirm("Are you sure you want to " + action + " this key?");
+        }
+
+        function toggleEdit(keyId) {
+            // Toggle between edit and save
+            let nameField = document.getElementById(`name_${keyId}`);
+            let serialKeyField = document.getElementById(`serial_key_${keyId}`);
+            let descriptionField = document.getElementById(`description_${keyId}`);
+            let deviceField = document.getElementById(`device_id_${keyId}`);
+            let editButton = document.getElementById(`edit_button_${keyId}`);
+            let isEditable = nameField.readOnly;
+
+            if (isEditable) {
+                // Make all fields editable and change button text to "Save"
+                nameField.readOnly = false;
+                serialKeyField.readOnly = false;
+                descriptionField.readOnly = false;
+                deviceField.disabled = false;
+                editButton.textContent = 'Save';
+                nameField.focus();
+            } else {
+                // Save all fields and update DB
+                nameField.readOnly = true;
+                serialKeyField.readOnly = true;
+                descriptionField.readOnly = true;
+                deviceField.disabled = true;
+                editButton.textContent = 'Edit';
+
+                let newName = nameField.value;
+                let newSerialKey = serialKeyField.value;
+                let newDescription = descriptionField.value;
+                let newDeviceId = deviceField.value;
+
+                // Send AJAX request to update all fields in the database
+                updateKey(keyId, newName, newSerialKey, newDescription, newDeviceId);
+            }
+        }
+
+        function updateKey(keyId, newName, newSerialKey, newDescription, newDeviceId) {
+            // Perform an AJAX request to update all fields in the database
+            fetch(`/update_key/${keyId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: newName,
+                    serial_key: newSerialKey,
+                    description: newDescription,
+                    device_id: newDeviceId
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    console.log('Key updated successfully');
+                } else {
+                    console.error('Error updating key');
+                }
+            });
+        }
+
+        // Handle pressing Enter key to trigger Save
+        function handleEnterKey(event, keyId) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent default form submission
+                toggleEdit(keyId); // Trigger save when Enter is pressed
+            }
+        }
+
+        // Trigger save when device is changed and update is_in_use status in real-time
+        function handleDeviceChange(keyId) {
+            let deviceField = document.getElementById(`device_id_${keyId}`);
+            let inUseField = document.getElementById(`in_use_${keyId}`);
+            let isInUse = (deviceField.value !== "0");  // Set to true if the selected device is not 'None' (id=0)
+            
+            // Update the UI in real-time
+            inUseField.textContent = isInUse ? 'In Use' : 'Available';
+
+            // Trigger the save and update is_in_use in the backend
+            updateKeyWithDeviceChange(keyId, deviceField.value, isInUse);
+            toggleEdit(keyId); 
+        }
+
+        // Update key when device changes and set 'is_in_use' accordingly
+        function updateKeyWithDeviceChange(keyId, newDeviceId, isInUse) {
+            fetch(`/update_key/${keyId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    device_id: newDeviceId,
+                    is_in_use: isInUse
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    console.log('Device updated successfully, is_in_use set to ' + isInUse);
+                } else {
+                    console.error('Error updating device and is_in_use');
+                }
+            });
+        }
+
+
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Keys for Category {{ category_name }}</title>
@@ -40,7 +150,7 @@
             border-radius: 3px;
         }
         textarea {
-            width: 150px; /* Same width as input fields */
+            width: 150px;
         }
         button:hover {
             background-color: #555;
@@ -56,64 +166,6 @@
             text-decoration: underline;
         }
     </style>
-
-    <!-- JavaScript for In-place Editing and Confirmation -->
-    <script>
-        function confirmAction(action) {
-            return confirm("Are you sure you want to " + action + " this key?");
-        }
-
-        function toggleEdit(keyId) {
-            // Toggle between edit and save
-            let serialKeyField = document.getElementById(`serial_key_${keyId}`);
-            let editButton = document.getElementById(`edit_button_${keyId}`);
-            let isEditable = serialKeyField.readOnly;
-
-            if (isEditable) {
-                // Make serial key editable and change button text to "Save"
-                serialKeyField.readOnly = false;
-                editButton.textContent = 'Save';
-                serialKeyField.focus();
-            } else {
-                // Save serial key and update DB
-                serialKeyField.readOnly = true;
-                editButton.textContent = 'Edit';
-
-                let newSerialKey = serialKeyField.value;
-
-                // Send AJAX request to update the serial key in the database
-                updateSerialKey(keyId, newSerialKey);
-            }
-        }
-
-        function updateSerialKey(keyId, newSerialKey) {
-            // Perform an AJAX request to update the serial key in the database
-            fetch(`/update_key/${keyId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    serial_key: newSerialKey
-                }),
-            })
-            .then(response => {
-                if (response.ok) {
-                    console.log('Serial key updated successfully');
-                } else {
-                    console.error('Error updating serial key');
-                }
-            });
-        }
-
-        // Handle pressing Enter key to trigger Save
-        function handleEnterKey(event, keyId) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                toggleEdit(keyId);
-            }
-        }
-    </script>
 </head>
 <body>
     <h1>Keys for Category: {{ category_name }}</h1>
@@ -159,51 +211,33 @@
         <tbody>
             {% for key in keys %}
             <tr>
-                <td>{{ key.name }}</td>
+                <td><input type="text" id="name_{{ key.id }}" value="{{ key.name }}" readonly onkeydown="handleEnterKey(event, {{ key.id }})"></td>
+                <td><input type="text" id="serial_key_{{ key.id }}" value="{{ key.serial_key }}" readonly onkeydown="handleEnterKey(event, {{ key.id }})"></td>
+                <td><input type="text" id="description_{{ key.id }}" value="{{ key.description or '' }}" readonly onkeydown="handleEnterKey(event, {{ key.id }})"></td>
                 <td>
-                    <input type="text" id="serial_key_{{ key.id }}" value="{{ key.serial_key }}" readonly
-                           onkeypress="handleEnterKey(event, {{ key.id }})">
+                    <select id="device_id_{{ key.id }}" disabled onchange="handleDeviceChange({{ key.id }})">
+                        <option value="0" {% if not key.device_id %}selected{% endif %}>None</option>
+                        {% for device in all_devices %}
+                        <option value="{{ device.id }}" {% if device.id == key.device_id %}selected{% endif %}>
+                            {{ device.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
                 </td>
+                <td id="in_use_{{ key.id }}">{{ 'In Use' if key.is_in_use else 'Available' }}</td>
                 <td>
-                    <!-- Description update form -->
-                    <form method="POST" action="/update_key_description/{{ key.id }}">
-                        <input type="text" name="description" value="{{ key.description or '' }}" size="25">
-                        <button type="submit">Update</button>
-                    </form>
-                </td>
-                <td>
-                    <!-- Device binding form for each key -->
-                    <form method="POST" action="/update_key_device/{{ key.id }}">
-                        <select name="device_id">
-                            <option value="" {% if not key.device_id %}selected{% endif %}>None</option> <!-- Default to None -->
-                            {% for device in all_devices %}
-                            <option value="{{ device.id }}" {% if device.id == key.device_id %}selected{% endif %}>
-                                {{ device.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit">Update Device</button>
-                    </form>
-                </td>
-                <td>{{ 'In Use' if key.is_in_use else 'Available' }}</td>
-                <td>
-                    <!-- Table for Remove and Save buttons, followed by Move functionality -->
                     <table>
                         <tr>
-                            <!-- Row for Remove and Save Buttons -->
                             <td>
-                                <!-- Remove Key with Confirmation -->
                                 <form method="POST" action="/remove_key/{{ key.id }}" style="display:inline;" onsubmit="return confirmAction('remove');">
                                     <button type="submit">Remove Key</button>
                                 </form>
                             </td>
                             <td>
-                                <!-- Save Button for Serial Key Update -->
                                 <button id="edit_button_{{ key.id }}" onclick="toggleEdit({{ key.id }})">Edit</button>
                             </td>
                         </tr>
                         <tr>
-                            <!-- Row for Move to Category -->
                             <td colspan="2">
                                 <form method="POST" action="/move_key/{{ key.id }}" onsubmit="return confirmAction('move');">
                                     <label for="new_category">Move to Category:</label>
