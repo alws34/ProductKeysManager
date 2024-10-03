@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Keys for Category {{ category_name }}</title>
+    <a href="/">Back to Categories</a>
     <style>
         /* Dark mode styles */
         body {
@@ -56,10 +57,61 @@
         }
     </style>
 
-    <!-- JavaScript Confirmation Function -->
+    <!-- JavaScript for In-place Editing and Confirmation -->
     <script>
         function confirmAction(action) {
             return confirm("Are you sure you want to " + action + " this key?");
+        }
+
+        function toggleEdit(keyId) {
+            // Toggle between edit and save
+            let serialKeyField = document.getElementById(`serial_key_${keyId}`);
+            let editButton = document.getElementById(`edit_button_${keyId}`);
+            let isEditable = serialKeyField.readOnly;
+
+            if (isEditable) {
+                // Make serial key editable and change button text to "Save"
+                serialKeyField.readOnly = false;
+                editButton.textContent = 'Save';
+                serialKeyField.focus();
+            } else {
+                // Save serial key and update DB
+                serialKeyField.readOnly = true;
+                editButton.textContent = 'Edit';
+
+                let newSerialKey = serialKeyField.value;
+
+                // Send AJAX request to update the serial key in the database
+                updateSerialKey(keyId, newSerialKey);
+            }
+        }
+
+        function updateSerialKey(keyId, newSerialKey) {
+            // Perform an AJAX request to update the serial key in the database
+            fetch(`/update_key/${keyId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    serial_key: newSerialKey
+                }),
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log('Serial key updated successfully');
+                } else {
+                    console.error('Error updating serial key');
+                }
+            });
+        }
+
+        // Handle pressing Enter key to trigger Save
+        function handleEnterKey(event, keyId) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                toggleEdit(keyId);
+            }
         }
     </script>
 </head>
@@ -108,7 +160,10 @@
             {% for key in keys %}
             <tr>
                 <td>{{ key.name }}</td>
-                <td>{{ key.serial_key }}</td>
+                <td>
+                    <input type="text" id="serial_key_{{ key.id }}" value="{{ key.serial_key }}" readonly
+                           onkeypress="handleEnterKey(event, {{ key.id }})">
+                </td>
                 <td>
                     <!-- Description update form -->
                     <form method="POST" action="/update_key_description/{{ key.id }}">
@@ -132,27 +187,40 @@
                 </td>
                 <td>{{ 'In Use' if key.is_in_use else 'Available' }}</td>
                 <td>
-                    <!-- Remove Key with Confirmation -->
-                    <form method="POST" action="/remove_key/{{ key.id }}" style="display:inline;" onsubmit="return confirmAction('remove');">
-                        <button type="submit">Remove Key</button>
-                    </form>
-
-                    <!-- Move Key to Another Category with Confirmation -->
-                    <form method="POST" action="/move_key/{{ key.id }}" style="display:inline;" onsubmit="return confirmAction('move');">
-                        <label for="new_category">Move to Category:</label>
-                        <select name="new_category" required>
-                            {% for category in all_categories %}
-                            <option value="{{ category.id }}">{{ category.name }}</option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit">Move</button>
-                    </form>
+                    <!-- Table for Remove and Save buttons, followed by Move functionality -->
+                    <table>
+                        <tr>
+                            <!-- Row for Remove and Save Buttons -->
+                            <td>
+                                <!-- Remove Key with Confirmation -->
+                                <form method="POST" action="/remove_key/{{ key.id }}" style="display:inline;" onsubmit="return confirmAction('remove');">
+                                    <button type="submit">Remove Key</button>
+                                </form>
+                            </td>
+                            <td>
+                                <!-- Save Button for Serial Key Update -->
+                                <button id="edit_button_{{ key.id }}" onclick="toggleEdit({{ key.id }})">Edit</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <!-- Row for Move to Category -->
+                            <td colspan="2">
+                                <form method="POST" action="/move_key/{{ key.id }}" onsubmit="return confirmAction('move');">
+                                    <label for="new_category">Move to Category:</label>
+                                    <select name="new_category" required>
+                                        {% for category in all_categories %}
+                                        <option value="{{ category.id }}">{{ category.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="submit">Move</button>
+                                </form>
+                            </td>
+                        </tr>
+                    </table>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-
-    <a href="/">Back to Categories</a>
 </body>
 </html>

@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
-
 import bcrypt
+import hashlib
 import re
 
 app = Flask(__name__)
@@ -19,17 +19,19 @@ engine = create_engine(connection_string,
 # Password hashing utility
 
 
+# Password hashing utility
 def hash_password(password):
     salt = bcrypt.gensalt()
     hashed_password = bcrypt.hashpw(password.encode(), salt)
     return hashed_password.decode('utf-8'), salt.decode('utf-8')
 
 # Normalize category names: lowercase and remove special characters
-
-
 def normalize_category_name(name):
     return re.sub(r'\W+', '', name.lower())
 
+# Utility to hash the serial key with SHA-512
+def hash_serial_key(serial_key,device_id):
+    return hashlib.sha512(device_id.encode('utf-8') + serial_key.encode('utf-8')).hexdigest()
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
@@ -39,14 +41,12 @@ def home():
     # Add a new device if it's a POST request
     if request.method == 'POST' and 'device_name' in request.form:
         device_name = request.form['device_name']
-        normalized_device_name = normalize_device_name(
-            device_name)  # Normalization function like before
+        normalized_device_name = normalize_device_name(device_name)
 
         try:
             with engine.connect() as conn:
                 # Insert the new device into the Devices table
-                conn.execute(text("INSERT INTO Devices (name) VALUES (:name)"), {
-                             'name': normalized_device_name})
+                conn.execute(text("INSERT INTO Devices (name) VALUES (:name)"), {'name': normalized_device_name})
                 conn.commit()  # Commit the transaction
         except SQLAlchemyError as e:
             print(f"Error inserting device: {str(e)}")
@@ -60,8 +60,6 @@ def home():
     return render_template('index.html', categories=categories, devices=devices)
 
 # Add Category Route
-
-
 @app.route('/add_category', methods=['POST'])
 def add_category():
     if 'username' not in session:
@@ -73,14 +71,13 @@ def add_category():
     try:
         with engine.connect() as conn:
             # Insert category if it doesn't already exist
-            existing_category = conn.execute(text(
-                "SELECT * FROM Categories WHERE name = :name"), {'name': normalized_name}).fetchone()
+            existing_category = conn.execute(text("SELECT * FROM Categories WHERE name = :name"),
+                                             {'name': normalized_name}).fetchone()
             if existing_category:
                 return 'Category already exists!', 400
 
             # Insert new category
-            conn.execute(text("INSERT INTO Categories (name) VALUES (:name)"), {
-                         'name': normalized_name})
+            conn.execute(text("INSERT INTO Categories (name) VALUES (:name)"), {'name': normalized_name})
             conn.commit()  # Explicitly commit the transaction
 
     except SQLAlchemyError as e:
@@ -147,12 +144,14 @@ def category_keys(category_id):
 # Search for a key in free text
 
 
+
+# Search for a key in free text
 @app.route('/search', methods=['GET'])
 def search_keys():
     query = request.args.get('query')
     with engine.connect() as conn:
         keys = conn.execute(text(
-            "SELECT * FROM Keys WHERE name LIKE :query"), {'query': f'%{query}%'}).fetchall()
+            "SELECT * FROM Keys WHERE name LIKE :query OR serial_key LIKE :query"), {'query': f'%{query}%'}).fetchall()
 
     return render_template('keys.html', keys=keys)
 
@@ -204,19 +203,23 @@ def add_key():
     category_id = request.form.get('category_id')  # Get the category
     device_id = request.form.get('device_id')  # Get the device (optional)
 
+    # Generate hash of the serial_key
+    hash_value = hash_serial_key(serial_key, device_id)
+
     # If device_id is not provided or empty, set it to None
     if not device_id:
         device_id = None
 
     try:
         with engine.connect() as conn:
-            # Insert the new key into the database, including the device_id and other fields
+            # Insert the new key into the database, including the device_id, hash, and other fields
             conn.execute(text("""
-                INSERT INTO Keys (name, serial_key, description, is_in_use, category_id, device_id) 
-                VALUES (:name, :serial_key, :description, :is_in_use, :category_id, :device_id)
+                INSERT INTO Keys (name, serial_key, hash_serial_key, description, is_in_use, category_id, device_id) 
+                VALUES (:name, :serial_key, :hash_serial_key, :description, :is_in_use, :category_id, :device_id)
             """), {
                 'name': name,
                 'serial_key': serial_key,
+                'hash_serial_key': hash_value,  # Store the hash of the serial key
                 'description': description,
                 'is_in_use': is_in_use,
                 'category_id': category_id,
@@ -228,8 +231,7 @@ def add_key():
         return f"An error occurred: {str(e)}", 500
 
     return redirect(f'/category/{category_id}')
-
-
+# Update a key's description
 @app.route('/update_key_description/<int:key_id>', methods=['POST'])
 def update_key_description(key_id):
     if 'username' not in session:
@@ -251,7 +253,6 @@ def update_key_description(key_id):
         return f"An error occurred: {str(e)}", 500
 
     return redirect(request.referrer)
-
 
 # Signup and Login routes (remain unchanged)
 @app.route('/signup', methods=['GET', 'POST'])
@@ -415,31 +416,35 @@ def normalize_device_name(name):
 
 
 # Update a key's device binding and set 'is_in_use' status accordingly
-@app.route('/update_key_device/<int:key_id>', methods=['POST'])
-def update_key_device(key_id):
+@app.route('/update_key/<int:key_id>', methods=['POST'])
+def update_key(key_id):
     if 'username' not in session:
         return redirect(url_for('login'))
 
-    device_id = request.form['device_id']  # Get the device_id from the form
+    data = request.get_json()
+    serial_key = data.get('serial_key')
+
+    # Generate the new hash for the updated serial_key
+    hash_value = hash_serial_key(serial_key)
 
     try:
         with engine.connect() as conn:
-            if not device_id:  # If "None" (empty value) is selected
-                # Set device_id to NULL and mark the key as not in use
-                conn.execute(text("UPDATE Keys SET device_id = NULL, is_in_use = 0 WHERE id = :key_id"), {
-                             'key_id': key_id})
-            else:
-                # Update the device_id and mark the key as in use
-                conn.execute(text("UPDATE Keys SET device_id = :device_id, is_in_use = 1 WHERE id = :key_id"), {
-                    'device_id': device_id,
-                    'key_id': key_id
-                })
+            # Update the serial_key and hash_serial_key
+            conn.execute(text("""
+                UPDATE Keys 
+                SET serial_key = :serial_key, hash_serial_key = :hash_serial_key
+                WHERE id = :key_id
+            """), {
+                'serial_key': serial_key,
+                'hash_serial_key': hash_value,
+                'key_id': key_id
+            })
             conn.commit()  # Commit the transaction
     except SQLAlchemyError as e:
-        print(f"Error updating key device: {str(e)}")
-        return f"An error occurred: {str(e)}", 500
+        print(f"Error updating key: {str(e)}")
+        return jsonify({'error': 'Failed to update serial key'}), 500
 
-    return redirect(request.referrer)  # Redirect back to the category page
+    return jsonify({'message': 'Serial key updated successfully'})
 
 
 @app.route('/device/<int:device_id>', methods=['GET'])
